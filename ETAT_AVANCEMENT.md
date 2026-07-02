@@ -12,6 +12,14 @@
 > en local** avec succès (`/help`, `/wo`, `/lang`, `/search`, texte libre) —
 > persistance préférence + FTS5 OK. Reste le test **note vocale** qui exige de
 > vrais credentials Twilio + appel ASR réel (voir §7).
+>
+> **LIVRÉ :** dépôt GitHub public
+> `https://github.com/SEYDINA04/afriklang-voicemail-intelligence`
+> (git repo dédié + commit + push). Code prouvé **vert en local** (ruff, mypy
+> strict, 20 tests). ⚠️ **GitHub Actions bloqué au niveau compte** (facturation /
+> spending limit) : jobs échouent sans étape, logs vides. À débloquer dans
+> *GitHub → Settings → Billing → Spending limit*, puis `git commit --allow-empty
+> -m "ci: rerun" && git push` pour relancer.
 
 ---
 

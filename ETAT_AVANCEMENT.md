@@ -98,6 +98,11 @@ make check       # ruff + mypy + pytest (tout vérifier)
 make test        # tests + couverture
 make dev         # API en local sur :8000 (autoreload)
 
+# CI/CD EN LOCAL (car GitHub Actions bloqué au niveau compte) :
+make ci-local    # = scripts/ci.sh : ruff + ruff format + mypy + pytest (comme ci.yml)
+make cd-local    # = scripts/cd.sh : build + push image GHCR (comme cd.yml)
+./scripts/cd.sh --build-only   # build l'image sans push (aucun scope requis)
+
 # Démo live :
 cp .env.example .env      # puis remplir les TWILIO_*
 make dev

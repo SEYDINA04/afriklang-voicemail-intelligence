@@ -1,4 +1,4 @@
-.PHONY: help install dev run test lint fmt typecheck check seed docker-build clean
+.PHONY: help install dev run test lint fmt typecheck check seed docker-build ci-local cd-local clean
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -28,6 +28,12 @@ check: lint typecheck test  ## Run all quality gates
 
 seed:  ## Seed demo data
 	uv run python scripts/seed_demo.py
+
+ci-local:  ## Run the full CI pipeline locally (mirrors ci.yml)
+	./scripts/ci.sh
+
+cd-local:  ## Build & push the image to GHCR locally (mirrors cd.yml)
+	./scripts/cd.sh
 
 docker-build:  ## Build the Docker image
 	docker build -t afriklang-voicemail:local .

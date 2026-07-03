@@ -1,0 +1,31 @@
+# Render Blueprint — one-click deploy from the GitHub repo.
+# https://render.com  →  New  →  Blueprint  →  select this repo.
+services:
+  - type: web
+    name: afriklang-voicemail
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DEFAULT_LANGUAGE
+        value: twi
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:///./data/afriklang.db
+      - key: AUDIO_CONVERT_TO_WAV
+        value: "false"
+      # Set to true once real Twilio credentials are configured below.
+      - key: TWILIO_VALIDATE_SIGNATURE
+        value: "false"
+      # ── Secrets: fill these in the Render dashboard (Environment tab) ──
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_WHATSAPP_FROM
+        value: whatsapp:+14155238886

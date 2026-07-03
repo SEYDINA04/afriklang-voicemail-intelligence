@@ -44,6 +44,7 @@ USER app
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"
+    CMD python -c "import os,urllib.request,sys; port=os.getenv('PORT','8000'); sys.exit(0 if urllib.request.urlopen(f'http://localhost:{port}/health').status==200 else 1)"
 
-CMD ["uvicorn", "afriklang_vm.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Respect the platform-provided $PORT (Render, Railway, Fly…), default 8000.
+CMD ["sh", "-c", "uvicorn afriklang_vm.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

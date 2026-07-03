@@ -5,10 +5,17 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import RedirectResponse
 
 from afriklang_vm.api.deps import AppContainer, get_container
 
 router = APIRouter(tags=["health"])
+
+
+@router.get("/", include_in_schema=False)
+async def root() -> RedirectResponse:
+    """Landing page: redirect to the interactive API docs."""
+    return RedirectResponse(url="/docs")
 
 
 @router.get("/health")

@@ -20,6 +20,12 @@
 > spending limit) : jobs échouent sans étape, logs vides. À débloquer dans
 > *GitHub → Settings → Billing → Spending limit*, puis `git commit --allow-empty
 > -m "ci: rerun" && git push` pour relancer.
+>
+> **DÉPLOYÉ (Vercel) :** produit live →
+> **https://afriklang-voicemail-intelligence.vercel.app**
+> Endpoints vérifiés en live : `/health` 200, `/docs` 200, webhook texte +
+> persistance OK. 12 variables d'env injectées via `vercel env` (Production).
+> Limite serverless : persistance SQLite éphémère (/tmp), pas de ffmpeg.
 
 ---
 

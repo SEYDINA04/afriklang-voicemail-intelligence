@@ -5,8 +5,45 @@
 > catégorie) + indicateur de confiance 🟢🟠🔴, et rend l'historique cherchable
 > (SQLite FTS5).
 
-**Dernière mise à jour :** 2 juillet 2026 (soir — session reprise)
+**Dernière mise à jour :** 3 juillet 2026 (session déploiement + Twilio + décision Meta)
 **Emplacement code :** `src/afriklang_vm/`
+
+---
+
+## 🔴 REPRISE RAPIDE (lis ça en premier)
+
+**Où on en est :** l'app est **déployée et fonctionnelle en live** sur Vercel, le bot
+WhatsApp **répond en réel via Twilio** (`/help`, `/wo`, `/lang` testés OK depuis
++221783128832). L'ASR Afriklang marche (modèles wo + twi chargés).
+
+**Blocage actuel :** Twilio **Trial** a épuisé son **quota journalier de messages
+(erreur `63038`)** → le bot traite tout correctement mais Twilio refuse de livrer
+les réponses. Ça se réinitialise chaque jour (ou upgrade du compte pour lever la limite).
+
+**Décision prise :** migrer le transport vers **Meta WhatsApp Cloud API** (officiel,
+gratuit, sans limite journalière, compatible Vercel, aucun risque de ban).
+OpenWA écarté (viole les CGU WhatsApp → risque de ban + serveur dédié requis).
+
+**Prochaines étapes :**
+1. **Créer l'app Meta** (côté utilisateur) : https://developers.facebook.com → My Apps
+   → Create App (type *Business*) → Add Product **WhatsApp** → page *API Setup*.
+   Y récupérer : **numéro test**, **Phone number ID**, **token**, **Add recipient**
+   (vérifier +221783128832). **App Secret** : App settings → Basic.
+   ⚠️ NE PAS confondre avec « Accounts Center » (= compte perso, mauvais endroit).
+2. **3 décisions à trancher avant de coder :**
+   - Token Meta : *temporaire 24h* ou **System User permanent** (recommandé) ?
+   - Twilio : **garder en parallèle** (recommandé) ou remplacer ?
+   - Version Graph API `v21.0` : OK ?
+3. **Implémentation Meta** (agent, après feu vert) — voir §8 « Plan Meta Cloud API ».
+
+**🔐 Sécurité À FAIRE :** régénérer l'Auth Token Twilio (`ae50…`, montré dans le chat)
+→ console.twilio.com → Account → API keys & tokens → *Regenerate*. Le fichier
+`.env.vercel` (local, gitignoré) contient les secrets Twilio — ne jamais le committer.
+
+**Repères :** projet `/home/seydina/aiforgood` · local `make dev` / `make ci-local`
+· redeploy `vercel --prod --yes` · live https://afriklang-voicemail-intelligence.vercel.app
+
+---
 
 > **Session du 02/07 (soir) :** `.env` local créé, API lancée et **webhook testé
 > en local** avec succès (`/help`, `/wo`, `/lang`, `/search`, texte libre) —
@@ -181,4 +218,78 @@ de réponse attendu `{"text","language","model"}`.
 
 **Rappel ressources :** couper ngrok + l'API quand le test est fini
 (`Ctrl+C`), et ne pas relancer les conteneurs Docker inutiles.
+
+---
+
+## 8. Plan Meta WhatsApp Cloud API (à implémenter)
+
+### Principe
+Ajouter un **2ᵉ transport (Meta)** à côté de Twilio, sans rien retirer. Chaque
+transport a sa route webhook + son client ; ils partagent le même `BotService`
+et le même pipeline ASR. L'archi est déjà transport-agnostique (`InboundMessage`,
+`handle_text/handle_media`), le download média + l'envoi se font dans la route.
+
+```
+WhatsApp (numéro test Meta)
+  → Meta Cloud API
+  → POST /meta/webhook (JSON)      ← nouvelle route
+  → download média via Graph API   ← nouveau client
+  → [BotService + Afriklang : INCHANGÉS]
+  → réponse via Graph API (POST /{phone_number_id}/messages)
+  → 200 OK
+```
+
+### Différences Twilio → Meta gérées par l'adaptateur
+- Webhook entrant : **JSON** (`entry[].changes[].value.messages[]`) au lieu de form-urlencoded.
+- Vérif webhook : **GET handshake** (`hub.challenge` + `hub.verify_token`) + **HMAC SHA-256** (`X-Hub-Signature-256`, clé = App Secret, sur le body brut).
+- Média : **2 étapes** — `GET /{media_id}` → URL → download (Bearer token).
+- Réponse : **appel API séparé** (`send_message`) puis renvoyer `200` (pas de TwiML).
+
+### Nouveaux fichiers
+- `src/afriklang_vm/integrations/meta/client.py` — `MetaWhatsAppClient` :
+  `download_media(media_id) -> (bytes, content_type)`, `send_message(to, body)`.
+- `src/afriklang_vm/integrations/meta/security.py` — `MetaSignatureValidator` :
+  `verify_challenge(mode, token, challenge)`, `is_valid(raw_body, signature)`.
+- `src/afriklang_vm/api/routes/meta_whatsapp.py` — `GET /meta/webhook` (handshake)
+  + `POST /meta/webhook` (parse → InboundMessage → bot → send_message → 200).
+- `tests/unit/test_meta_security.py`, `tests/integration/test_meta_webhook.py` (mock via `respx`).
+
+### Fichiers modifiés
+- `config.py` : `whatsapp_provider`, `meta_access_token`, `meta_phone_number_id`,
+  `meta_app_secret`, `meta_verify_token`, `meta_graph_version="v21.0"`, `meta_validate_signature=True`.
+- `api/deps.py` + `main.py` (build_container) : instancier client + validator Meta,
+  ajouter à `AppContainer` + accessors `get_meta`, `get_meta_validator`.
+- `api/router.py` : `include_router(meta_whatsapp.router)`.
+- `domain/schemas.py` : docstring `InboundMessage` (« Twilio » → « WhatsApp ») ; le
+  `media_id` Meta est stocké dans `media_url` (le client Meta le résout).
+- **Aucune modif** de `BotService`/`TranscriptionService`/`AfriklangClient`/repos/DB.
+
+### Variables d'env Meta (à ajouter sur Vercel + `.env`)
+```
+WHATSAPP_PROVIDER=meta
+META_ACCESS_TOKEN=...            # Bearer (temporaire 24h OU System User permanent)
+META_PHONE_NUMBER_ID=...
+META_APP_SECRET=...
+META_VERIFY_TOKEN=un_secret_au_choix
+META_GRAPH_VERSION=v21.0
+META_VALIDATE_SIGNATURE=true
+```
+
+### Étapes côté Meta (utilisateur)
+1. developers.facebook.com → Create App (Business) → Add Product WhatsApp.
+2. WhatsApp → API Setup : numéro test, Phone number ID, token, Add recipient (+221783128832 + OTP).
+3. App settings → Basic : App Secret.
+4. Webhooks : Callback URL `https://afriklang-voicemail-intelligence.vercel.app/meta/webhook`,
+   Verify token = `META_VERIFY_TOKEN`, s'abonner au champ **messages**.
+
+### Note Vercel / serverless
+Traitement **synchrone** (transcrit puis répond avant le 200). Vocal long ⇒ risque
+de dépasser le délai ; Meta re-tente. Pour la démo OK ; sinon ack immédiat +
+traitement async (évolution ultérieure).
+
+### Décisions en attente (avant de coder)
+1. Token Meta : temporaire 24h **ou** System User permanent (recommandé) ?
+2. Twilio : garder en parallèle (recommandé) **ou** remplacer ?
+3. Graph API `v21.0` OK ?
+
 

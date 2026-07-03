@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 from afriklang_vm.domain.models import Base
 
@@ -69,7 +70,12 @@ def init_engine(database_url: str) -> AsyncEngine:
     global _engine, _sessionmaker
     if _engine is None:
         _ensure_sqlite_dir(database_url)
-        _engine = create_async_engine(database_url, future=True, echo=False)
+        # Serverless (e.g. Vercel): disable pooling so connections are never
+        # reused across event loops / invocations.
+        engine_kwargs: dict[str, object] = {"future": True, "echo": False}
+        if os.getenv("DB_NULLPOOL") == "1":
+            engine_kwargs["poolclass"] = NullPool
+        _engine = create_async_engine(database_url, **engine_kwargs)
         _sessionmaker = async_sessionmaker(_engine, expire_on_commit=False)
     return _engine
 
